@@ -14,40 +14,47 @@ const FireAuth = class {
     Auth.Google.configure(googleConfig);
   }
 
-  setup = (onLogin, onUserChange, onLogout, onEmailVerified, onError) => {
+  setup = (onLogin, onUserChange, onLogout, onEmailVerified, onError, config = { saveUserToDatabase: true }) => {
     this.onUserChange = onUserChange;
     this.onLogout = onLogout;
     this.onEmailVerified = onEmailVerified;
     this.onLogin = onLogin;
     this.onError = onError;
+    this.userToDatabase = config.saveUserToDatabase;
 
-    firebase.auth().onAuthStateChanged((user)=> {
+    firebase.auth().onAuthStateChanged((user) => {
 
       if (user) {
         // Determine if user needs to verify email
         var emailVerified = !user.providerData || !user.providerData.length || user.providerData[0].providerId != 'password' || user.emailVerified;
 
-        // Upsert profile information
-        var profileRef = firebase.database().ref(`profiles/${user.uid}`);
-        profileRef.update({ emailVerified: emailVerified, email: user.email });
+        // Upsert profile information unless userToDatabase is set to false
+        let val = { emailVerified: true };
+        if (this.userToDatabase) {
+          var profileRef = firebase.database().ref(`profiles/${user.uid}`);
+          profileRef.update({ emailVerified: emailVerified, email: user.email });
 
-        profileRef.on('value', (profile)=> {
-          const val = profile.val();
+          profileRef.on('value', (profile) => {
+            val = profile.val();
 
-          // Email become verified in session
-          if (val.emailVerified && (this.profile && !this.profile.val().emailVerified)) {
-            this.onEmailVerified && this.onEmailVerified();
-          }
+            // Email become verified in session
+            if (val.emailVerified && (this.profile && !this.profile.val().emailVerified)) {
+              this.onEmailVerified && this.onEmailVerified();
+            }
 
-          if (!this.user) {
-            this.onLogin && this.onLogin(user, val); // On login
-          } else if (val) {
-            this.onUserChange && this.onUserChange(user, val); // On updated
-          }
+            this.profile = profile; // Store profile
+          });
+        } else {
+          this.onEmailVerified && this.onEmailVerified();
+        }
 
-          this.profile = profile; // Store profile
-          this.user = user; // Store user
-        });
+        if (!this.user) {
+          this.onLogin && this.onLogin(user, val); // On login
+        } else if (val) {
+          this.onUserChange && this.onUserChange(user, val); // On updated
+        }
+
+        this.user = user; // Store user
 
       } else {
         this.profile = null;
@@ -115,6 +122,8 @@ const FireAuth = class {
   }
 
   update = (data) => {
+    if (!this.userToDatabase) return;
+
     var profileRef = firebase.database().ref(`profiles/${this.user.uid}`);
     return profileRef.update(data);
   }
