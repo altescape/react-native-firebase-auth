@@ -43,7 +43,14 @@ constructor(props) {
 }
 
 componentDidMount() {
-  FireAuth.setup(this.onLogin, this.onUserChange, this.onLogout, this.emailVerified, this.onError);
+  FireAuth.setup(
+    this.onLogin, 
+    this.onUserChange, 
+    this.onLogout, 
+    this.emailVerified, 
+    this.onError,
+    { saveUserToDatabase: false }  // Remove this line and it uses true as default,
+  );                               // Note: Setting this to false will disable email verification. 
 }
 
 register = () => {
